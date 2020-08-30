@@ -130,6 +130,8 @@ class Multiwii:
 
     def __init__(self, serialPort, ipAddress=None, ipPort=None, useTcp=False, callback=None):
 
+        self.msp_data = {}
+
         self.msp_name = { 
             'name':None 
             }
@@ -362,12 +364,15 @@ class Multiwii:
             print "("+str(error)+")\n\n"        
 
     def evaluateCommand(self, cmd, dataSize):
+        self.msp_data[cmd] = self.inBuf[:dataSize]
         if cmd == Multiwii.MSP_NAME:
-            bytes_data = []
+            s = ''
             for i in range(0,dataSize,1):
-                bytes_data.append(i)
-                bytes_data[i] = self.read8()
-            self.msp_name['name'] = "".join(map(chr, bytes_data))
+                b = self.read8()
+                if b == 0:
+                    break
+                s += chr(b)
+            self.msp_name['name'] = s
         elif cmd == Multiwii.MSP_IDENT:
             self.msp_ident['version'] = self.read8()
             self.msp_ident['multiType'] = self.read8()
@@ -490,34 +495,34 @@ class Multiwii:
         elif cmd == Multiwii.MSP_DEBUG:
             x = None
         elif cmd == Multiwii.MSP_OSD_CONFIG:
-            self.msp_osd_config['feature'] = int(self.read8()),                # 8
-            self.msp_osd_config['video_system'] = self.read8(),           # 8
-            self.msp_osd_config['units'] = self.read8(),                  # 8
-            self.msp_osd_config['rssi_alarm'] = self.read8(),             # 8
-            self.msp_osd_config['cap_alarm'] = self.read16(),             # 16
-            self.msp_osd_config['unusaed_1'] = self.read8(),              # 8
-            self.msp_osd_config['osd_item_count'] = self.read8(),         # 8
-            self.msp_osd_config['alt_alarm'] = self.read16(),             # 16
-            for i in range(0, self.msp_osd_config['osd_item_count'][0], 1):
-                self.msp_osd_config['osd_items'][i] = self.read16(),      # x 16
-            self.msp_osd_config['stats_item_count'] = self.read8(),       # 8
-            for i in range(0, self.msp_osd_config['stats_item_count'][0], 1):
-                self.msp_osd_config['stats_items'][i] = self.read16(),    # x 16  
-            self.msp_osd_config['timer_count'] = self.read8(),            # 8
-            for i in range(0, self.msp_osd_config['timer_count'][0], 1):     
-                self.msp_osd_config['timer_items'][i] = self.read16(),    # x 16
-            self.msp_osd_config['legacy_warnings'] = self.read16(),       # 16
-            self.msp_osd_config['warnings_count'] = self.read8(),         # 8
-            self.msp_osd_config['enabled_warnings'] = self.read32(),      # 32
-            self.msp_osd_config['profiles'] = self.read8(),               # 8
-            self.msp_osd_config['selected_profile'] = self.read8(),       # 8
+            self.msp_osd_config['feature'] = int(self.read8())                # 8
+            self.msp_osd_config['video_system'] = self.read8()           # 8
+            self.msp_osd_config['units'] = self.read8()                  # 8
+            self.msp_osd_config['rssi_alarm'] = self.read8()             # 8
+            self.msp_osd_config['cap_alarm'] = self.read16()             # 16
+            self.msp_osd_config['unusaed_1'] = self.read8()              # 8
+            self.msp_osd_config['osd_item_count'] = self.read8()         # 8
+            self.msp_osd_config['alt_alarm'] = self.read16()             # 16
+            for i in range(0, self.msp_osd_config['osd_item_count'], 1):
+                self.msp_osd_config['osd_items'][i] = self.read16()      # x 16
+            self.msp_osd_config['stats_item_count'] = self.read8()       # 8
+            for i in range(0, self.msp_osd_config['stats_item_count'], 1):
+                self.msp_osd_config['stats_items'][i] = self.read16()    # x 16
+            self.msp_osd_config['timer_count'] = self.read8()            # 8
+            for i in range(0, self.msp_osd_config['timer_count'], 1):
+                self.msp_osd_config['timer_items'][i] = self.read16()    # x 16
+            self.msp_osd_config['legacy_warnings'] = self.read16()       # 16
+            self.msp_osd_config['warnings_count'] = self.read8()         # 8
+            self.msp_osd_config['enabled_warnings'] = self.read32()      # 32
+            self.msp_osd_config['profiles'] = self.read8()               # 8
+            self.msp_osd_config['selected_profile'] = self.read8()       # 8
             self.msp_osd_config['osd_overlay'] = self.read8()
                         # 8
         elif cmd == Multiwii.MSP_BATTERY_STATE:
-            self.msp_battery_state['cellCount'] = self.read8(),
-            self.msp_battery_state['capacity'] =  self.read16(),
-            self.msp_battery_state['voltage'] = self.read8(), 
-            self.msp_battery_state['mah'] = self.read16(),  
+            self.msp_battery_state['cellCount'] = self.read8()
+            self.msp_battery_state['capacity'] =  self.read16()
+            self.msp_battery_state['voltage'] = self.read8()
+            self.msp_battery_state['mah'] = self.read16()
             self.msp_battery_state['current'] = self.read16()  
 
     def parseMspData(self, c):
