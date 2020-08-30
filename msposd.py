@@ -1,32 +1,15 @@
 #!/usr/bin/env python
-# import pygame module in this program 
 
 import pygame
 import threading
 import time
 import sys
 import pmultiwii
-import math
-  
-message = "ABCDEF"
-hide_message = False
-stop_bg_task = False
-
 
 def msp_callback(msp_cmd, dataSize):
     pass
 
-def get_data():
-    while True:
-        global msp
-        if stop_bg_task:
-            break
-        msp.receiveTcpByte()
-
-msp = pmultiwii.Multiwii(None, "localhost", 5763, True, msp_callback)
-
-t1 = threading.Thread(target=get_data, args=())
-t1.start()
+msp = pmultiwii.Multiwii(None, "localhost", 5763, True)
 
 pygame.init()
   
@@ -49,8 +32,7 @@ WindowHeight = 16 * FontHeight
 display_surface = pygame.display.set_mode((WindowWidth,WindowHeight))
 
 # set the pygame window name
-pygame.display.set_caption('Show Text') 
-  
+pygame.display.set_caption('MSP Display')
 
 def item_to_pos(item):
     '''map MSP item to a X,Y tuple or None'''
@@ -64,17 +46,19 @@ def item_to_pos(item):
     return (pos_x, pos_y)
 
 
-def display_text(item,message):
+def display_text(item, message):
+    '''display a string message for an item'''
     XY = item_to_pos(item)
     if XY is None:
         return
     (X,Y) = XY
     text = font.render(message, True, white, black)
     textRect = text.get_rect()
-    
+
+    slen = len(message)
     px = X * FontWidth
     py = Y * FontHeight
-    textRect.center = (px, py)
+    textRect.center = (px+textRect.width/2, py+textRect.height/2)
     display_surface.blit(text, textRect)
 
 def display_all():
@@ -84,27 +68,28 @@ def display_all():
     display_text(msp.OSD_GPS_SPEED, "%.1fm/s" % (msp.msp_raw_gps['GPS_speed']*0.01))
     display_text(msp.OSD_GPS_SATS, "%uS" % (msp.msp_raw_gps['GPS_numSat']))
     display_text(msp.OSD_ALTITUDE, "%.1fm" % (msp.msp_altitude['alt']*0.01))
+    display_text(msp.OSD_ROLL_ANGLE, "Roll:%.1f" % (msp.msp_attitude['roll']*0.1))
+    display_text(msp.OSD_PITCH_ANGLE, "Pitch:%.1f" % (msp.msp_attitude['pitch']*0.1))
     display_text(msp.OSD_CRAFT_NAME, "%s" % (msp.msp_name['name']))
 
 font = pygame.font.Font('freesansbold.ttf', 12)
 
+last_display_t = time.time()
+
 # infinite loop 
 while True:
-    time.sleep(0.1)
+    now = time.time()
+    msp.receiveTcpByte()
 
-    # completely fill the surface object
-    # with white color 
-    display_surface.fill(black) 
-
-    display_all()
-
-    # Draws the surface object to the screen.   
-    pygame.display.update()  
+    if now - last_display_t > 0.1:
+        # display at 10Hz
+        last_display_t = now
+        display_surface.fill(black)
+        display_all()
+        pygame.display.update()
+        time.sleep(0.01)
     
-    for event in pygame.event.get() : 
+    for event in pygame.event.get():
         if event.type == pygame.QUIT : 
-            # clean up
-            stop_bg_task = True
-            # quit the program. 
-            pygame.quit() 
+            pygame.quit()
             quit() 

@@ -128,11 +128,9 @@ class Multiwii:
     PIDITEMS = 10
 
 
-    def __init__(self, serialPort, ipAddress=None, ipPort=None, useTcp=False, callback=None):
+    def __init__(self, serialPort, ipAddress=None, ipPort=None, useTcp=False):
 
-        self.msp_data = {}
-
-        self.msp_name = { 
+        self.msp_name = {
             'name':None 
             }
         self.msp_ident = {
@@ -228,7 +226,7 @@ class Multiwii:
             'current':0
         }
 
-        self.inBuf = [None] * 255
+        self.inBuf = bytearray([0] * 255)
         self.p = 0
         self.c_state = Multiwii.IDLE
         self.err_rcvd = False
@@ -265,7 +263,6 @@ class Multiwii:
         self.ipAddress = ipAddress
         self.ipPort = ipPort
         self.useTcp = useTcp
-        self.cmd_callback = callback
 
         try:
             if not useTcp:
@@ -285,18 +282,34 @@ class Multiwii:
 
 
     def read32(self):
-        value =  (self.inBuf[self.p]&0xff) + ((self.inBuf[self.p+1]&0xff)<<8) + ((self.inBuf[self.p+2]&0xff)<<16) + ((self.inBuf[self.p+3]&0xff)<<24)
-        self.p = self.p + 4
-        return value
-    def read16(self):
-        value = (self.inBuf[self.p]&0xff) + ((self.inBuf[self.p+1])<<8)
-        self.p = self.p + 2
-        return value
-    def read8(self):
-        value = (self.inBuf[self.p])&0xff
-        self.p = self.p + 1
+        '''signed 32 bit number'''
+        value, = struct.unpack("<i", self.inBuf[self.p:self.p+4])
+        self.p += 4
         return value
 
+    def read32u(self):
+        '''unsigned 32 bit number'''
+        value, = struct.unpack("<I", self.inBuf[self.p:self.p+4])
+        self.p += 4
+        return value
+    
+    def read16(self):
+        '''signed 16 bit number'''
+        value, = struct.unpack("<h", str(self.inBuf[self.p:self.p+2]))
+        self.p += 2
+        return value
+
+    def read16u(self):
+        '''unsigned 16 bit number'''
+        value, = struct.unpack("<H", str(self.inBuf[self.p:self.p+2]))
+        self.p += 2
+        return value
+    
+    def read8(self):
+        '''unsigned 8 bit number'''
+        value, = struct.unpack("<B", str(self.inBuf[self.p:self.p+1]))
+        self.p += 1
+        return value
 
     def requestMSP (self, msp, payload = [], payloadinbytes = False):
 
@@ -364,7 +377,6 @@ class Multiwii:
             print "("+str(error)+")\n\n"        
 
     def evaluateCommand(self, cmd, dataSize):
-        self.msp_data[cmd] = self.inBuf[:dataSize]
         if cmd == Multiwii.MSP_NAME:
             s = ''
             for i in range(0,dataSize,1):
@@ -377,13 +389,13 @@ class Multiwii:
             self.msp_ident['version'] = self.read8()
             self.msp_ident['multiType'] = self.read8()
             self.read8() # MSP version
-            self.msp_ident['multiCapability'] = self.read32()
+            self.msp_ident['multiCapability'] = self.read32u()
 
         elif cmd == Multiwii.MSP_STATUS:
-            self.msp_status['cycleTime'] = self.read16()
-            self.msp_status['i2cError'] = self.read16()
-            self.msp_status['present'] = self.read16()
-            self.msp_status['mode'] = self.read32()
+            self.msp_status['cycleTime'] = self.read16u()
+            self.msp_status['i2cError'] = self.read16u()
+            self.msp_status['present'] = self.read16u()
+            self.msp_status['mode'] = self.read32u()
 
         elif cmd == Multiwii.MSP_RAW_IMU:
             self.msp_raw_imu['accx'] = float(self.read16())
@@ -423,8 +435,8 @@ class Multiwii:
             self.msp_comp_gps['GPS_update'] = self.read8()
 
         elif cmd == Multiwii.MSP_ATTITUDE:
-            self.msp_attitude['roll'] = (self.read16())/10
-            self.msp_attitude['pitch'] = (self.read16())/10
+            self.msp_attitude['roll'] = self.read16()
+            self.msp_attitude['pitch'] = self.read16()
             self.msp_attitude['yaw'] = self.read16()
 
         elif cmd == Multiwii.MSP_ALTITUDE:
@@ -480,11 +492,11 @@ class Multiwii:
             x = None
 
         elif cmd == Multiwii.MSP_MISC:
-            self.msp_misc['intPowerTrigger'] = self.read16()
+            self.msp_misc['intPowerTrigger'] = self.read16u()
             for i in range(0,4,1):
-                self.MConf[i] = (self.read16())
-            self.MConf[4] = (self.read32())
-            self.MConf[5] = (self.read32())
+                self.MConf[i] = self.read16u()
+            self.MConf[4] = self.read32u()
+            self.MConf[5] = self.read32u()
 
         elif cmd == Multiwii.MSP_MOTOR_PINS:
             for i in range(0, 8, 1):
@@ -504,25 +516,25 @@ class Multiwii:
             self.msp_osd_config['osd_item_count'] = self.read8()         # 8
             self.msp_osd_config['alt_alarm'] = self.read16()             # 16
             for i in range(0, self.msp_osd_config['osd_item_count'], 1):
-                self.msp_osd_config['osd_items'][i] = self.read16()      # x 16
+                self.msp_osd_config['osd_items'][i] = self.read16u()      # x 16
             self.msp_osd_config['stats_item_count'] = self.read8()       # 8
             for i in range(0, self.msp_osd_config['stats_item_count'], 1):
-                self.msp_osd_config['stats_items'][i] = self.read16()    # x 16
+                self.msp_osd_config['stats_items'][i] = self.read16u()    # x 16
             self.msp_osd_config['timer_count'] = self.read8()            # 8
             for i in range(0, self.msp_osd_config['timer_count'], 1):
-                self.msp_osd_config['timer_items'][i] = self.read16()    # x 16
-            self.msp_osd_config['legacy_warnings'] = self.read16()       # 16
+                self.msp_osd_config['timer_items'][i] = self.read16u()    # x 16
+            self.msp_osd_config['legacy_warnings'] = self.read16u()       # 16
             self.msp_osd_config['warnings_count'] = self.read8()         # 8
-            self.msp_osd_config['enabled_warnings'] = self.read32()      # 32
+            self.msp_osd_config['enabled_warnings'] = self.read32u()      # 32
             self.msp_osd_config['profiles'] = self.read8()               # 8
             self.msp_osd_config['selected_profile'] = self.read8()       # 8
             self.msp_osd_config['osd_overlay'] = self.read8()
                         # 8
         elif cmd == Multiwii.MSP_BATTERY_STATE:
             self.msp_battery_state['cellCount'] = self.read8()
-            self.msp_battery_state['capacity'] =  self.read16()
+            self.msp_battery_state['capacity'] =  self.read16u()
             self.msp_battery_state['voltage'] = self.read8()
-            self.msp_battery_state['mah'] = self.read16()
+            self.msp_battery_state['mah'] = self.read16u()
             self.msp_battery_state['current'] = self.read16()  
 
     def parseMspData(self, c):
@@ -563,10 +575,8 @@ class Multiwii:
         elif self.c_state == Multiwii.HEADER_CMD and self.offset < self.dataSize:
             #print (struct.unpack('<B',c)[0])
             self.checksum ^= ((struct.unpack('<B',c)[0])&0xFF)
-            self.inBuf[self.offset] = ((struct.unpack('<B',c)[0]) & 0xFF)
+            self.inBuf[self.offset] = c
             self.offset += 1
-            #print "self.inBuf..."
-            #print self.inBuf[offset-1]
         elif self.c_state == Multiwii.HEADER_CMD and self.offset >= self.dataSize:
             # compare calculated and transferred checksum
             #print "Final step..."
@@ -576,21 +586,11 @@ class Multiwii:
                 else:
                     self.evaluateCommand(self.cmd, self.dataSize)
                     
-                    if self.cmd_callback != None:
-                        self.cmd_callback(self.cmd, self.dataSize)
-
                     if not self.useTcp:
                         self.ser.flushInput()
                         self.ser.flushOutput()
             else:
                 print '"invalid checksum for command "+((int)(cmd&0xFF))+": "+(checksum&0xFF)+" expected, got "+(int)(c&0xFF))'
-                print '"<"+(cmd&0xFF)+" "+(dataSize&0xFF)+"> {");'
-                for i in range(0, len(self.dataSize), 1):
-                    if (i != 0):
-                        print ""
-                    print ((self.inBuf[i] & 0xFF))
-                print "} ["+(struct.unpack('<B',c)[0])+"]"
-                print "String"
 
             self.c_state = Multiwii.IDLE
             #self.ser.flushOutput()
